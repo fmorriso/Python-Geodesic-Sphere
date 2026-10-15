@@ -19,6 +19,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+from dotenv import dotenv_values
 from matplotlib.animation import FuncAnimation
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 
@@ -57,24 +58,8 @@ def find_env_file(explicit: str | None) -> Path:
     sys.exit("Error: no .env file found next to the script or in the working directory.")
 
 
-def parse_env(path: Path) -> dict[str, str]:
-    """Parse KEY=VALUE lines. Blank lines and full-line # comments are skipped."""
-    values: dict[str, str] = {}
-    for number, raw in enumerate(path.read_text().splitlines(), start=1):
-        line = raw.strip()
-        if not line or line.startswith("#"):
-            continue
-        if "=" not in line:
-            sys.exit(f"Error: {path}:{number}: expected KEY=VALUE, got {raw!r}")
-        key, _, value = line.partition("=")
-        # Allow trailing " # comment" (the space keeps colors like #0b0f1a intact).
-        value = value.split(" #")[0].strip().strip("\"'")
-        values[key.strip()] = value
-    return values
-
-
 def load_config(path: Path) -> Config:
-    env = parse_env(path)
+    env = {k: v for k, v in dotenv_values(path).items() if v is not None}
 
     def get(key: str, cast):
         if key not in env:
