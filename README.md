@@ -15,23 +15,50 @@ Python - 3D Geodesic Sphere
 
 | Date       | Description                            |
 |:-----------|:---------------------------------------|
-| 2026-09-23 | use built-in type instead of TypeAlias |
-| 2026-06-16 | Move html to separate file             |
-| 2026-06-15 | Initial creation                       |
+| 2026-10-15 | Initial creation                       |
 
 ## Developers - PLEASE READ
 
-Requires Python 3.12 or newer
+Requires Python 3.14 or newer
 
 To make this program work, after bringing down the code from GitHub,
-you must make a new file called **_.env_** in the same directory as `src/main.py` that holds the file system path to
-where
-the map coordinates are located.
+you must make a new file called **_.env_** in the same directory as `main.py` that holds the file system path to
+where the configuration values are located.
 
 Here's an example:
 
 ```text
-COORDINATES_FILE = "bounding_box.json"
+# Geodesic sphere settings
+# Every value used by main.py and config.py comes from this file.
+
+# --- Geometry ---
+# Radius of the sphere (number > 0)
+SPHERE_RADIUS=1.0
+# Mesh density: 1 = bare icosahedron, higher = finer wireframe (integer >= 1)
+FREQUENCY=3
+# Half-height of the open band around the equator (0 = closed, ~0.9 = nearly all removed)
+OPENING=0
+
+# --- Appearance ---
+LINE_WIDTH=1.4
+# Any matplotlib colormap name (cool, viridis, plasma, turbo, ...)
+COLORMAP=cool
+BACKGROUND_COLOR=#0b0f1a
+TITLE_COLOR=white
+FIGURE_SIZE=8
+SHOW_TITLE=true
+
+# --- View / animation ---
+ELEVATION=20
+START_AZIMUTH=30
+# Auto-rotate the view (true/false)
+SPIN=true
+# Degrees of rotation per frame
+SPIN_SPEED=0.8
+# Milliseconds between frames
+FRAME_INTERVAL=30
+# Frames before the animation loops
+FRAME_COUNT=450
 ```
 
 ### PyQt6 quirk to watch out for
