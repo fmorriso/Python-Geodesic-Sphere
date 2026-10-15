@@ -23,6 +23,7 @@ import numpy as np
 from dotenv import dotenv_values
 from matplotlib.animation import FuncAnimation
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
+from openpyxl.descriptors import namespace
 
 from config import Config
 from program_settings import ProgramSettings
@@ -60,16 +61,15 @@ def find_env_file(explicit: str | None) -> Path:
     sys.exit("Error: no .env file found next to the script or in the working directory.")
 
 
-def load_config(path: Path) -> Config:
-    env = {k: v for k, v in dotenv_values(path).items() if v is not None}
-
+def load_config() -> Config:
     def get(key: str, cast):
-        if key not in env:
-            sys.exit(f"Error: missing required setting {key} in {path}")
+        val = ProgramSettings.get_setting(key)
+        if val is None:
+            sys.exit(f"Error: missing required setting {key} in environment")
         try:
-            return cast(env[key])
+            return cast(val)
         except ValueError:
-            sys.exit(f"Error: invalid value for {key} in {path}: {env[key]!r}")
+            sys.exit(f"Error: invalid value for {key}: {val!r}")
 
     def to_bool(text: str) -> bool:
         lowered = text.lower()
@@ -209,13 +209,14 @@ def main() -> None:
             print(e)
 
     parser = argparse.ArgumentParser(description="Hollow geodesic wireframe sphere")
-    parser.add_argument("--env", help="path to a .env file (default: auto-detect)")
-    cfg = load_config(find_env_file(parser.parse_args().env))
+    parser.parse_args()
+
+    cfg = load_config()
 
     tris = open_middle(geodesic_triangles(cfg.frequency), cfg.opening)
     edges = unique_edges(tris) * cfg.sphere_radius
 
-    # Colour each edge by its height.
+    # Color each edge by its height.
     z = edges[:, :, 2].mean(axis=1)
     colors = plt.get_cmap(cfg.colormap)((z - z.min()) / (np.ptp(z) or 1.0))
 
