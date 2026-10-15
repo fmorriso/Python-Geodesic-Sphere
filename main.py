@@ -1,35 +1,34 @@
 #!/usr/bin/env python3
 """
-3D geodesic sphere: a hollow, open wireframe with an open middle.
+3D geodesic sphere: a hollow, open wireframe with an open middle using Open3D.
 
 Every setting is read from a .env file (no values are hard-coded here).
 The script looks for .env next to itself first, then in the working
 directory, or you can point at one with --env.
 
-Requires:  pip install numpy matplotlib
+Requires:  pip install numpy matplotlib open3d python-dotenv openpyxl
 Usage:     python geodesic_sphere.py
            python geodesic_sphere.py --env path/to/other.env
 
-Drag with the mouse to rotate manually.
+Drag with the mouse to rotate manually, scroll to zoom.
 """
 
 import argparse
+import ctypes
 import sys
 from pathlib import Path
 from importlib.metadata import version
 
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 import numpy as np
-from dotenv import dotenv_values
-from matplotlib.animation import FuncAnimation
-from mpl_toolkits.mplot3d.art3d import Line3DCollection
-from openpyxl.descriptors import namespace
+import open3d as o3d
 
 from config import Config
 from program_settings import ProgramSettings
 
 # Mathematical constants of the icosahedron (geometry, not settings).
-PHI = (1 + 5**0.5) / 2
+PHI = (1 + 5 ** 0.5) / 2
 
 ICO_VERTS = np.array(
     [
@@ -47,6 +46,7 @@ ICO_FACES = [
     (3, 9, 4), (3, 4, 2), (3, 2, 6), (3, 6, 8), (3, 8, 9),
     (4, 9, 5), (2, 4, 11), (6, 2, 10), (8, 6, 7), (9, 8, 1),
 ]
+
 
 def find_env_file(explicit: str | None) -> Path:
     if explicit:
@@ -156,59 +156,102 @@ def unique_edges(tris: np.ndarray) -> np.ndarray:
                 edges.append(np.array([p, q]))
     return np.array(edges)
 
-#---------------------------------------------------------------------------
+
+# --------------------------------------------------------------------------
 # Handy utility methods
+# --------------------------------------------------------------------------
 
 def get_python_version() -> str:
     return f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}'
 
 
 def get_package_version(pkg_name: str) -> str:
-    """
-    returns the version number of the given package name
-    :param pkg_name: the name of the package
-    :type pkg_name: string (str)
-    :return: package version number.
-    :rtype: string (str)
-    """
     return version(pkg_name)
 
+
 def get_required_package_names() -> list[str]:
-    """
-    read the requirements.txt file and return a sorted list of package names.
-    :return: sorted list of package names
-    :rtype: list[str
-    """
     packages: list[str] = []
     with open('requirements.txt') as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith('#'):
-                continue  # skip blank lines and comments
-            package = line.split('~')[0].strip()  # works for ~=, >=, ==, etc.
+                continue
+            package = line.split('~')[0].strip()
             packages.append(package)
 
-    packages.sort(key = str.lower)
+    packages.sort(key=str.lower)
     return packages
+
+
+def get_libusb_version() -> str:
+    """Retrieve the native libusb version using ctypes."""
+    try:
+        # Determine the likely library path based on the operating system
+        if sys.platform == "darwin":
+            lib_paths = [
+                "/opt/homebrew/opt/libusb/lib/libusb-1.0.0.dylib",
+                "/usr/local/opt/libusb/lib/libusb-1.0.0.dylib",
+                "libusb-1.0.dylib"
+            ]
+        elif sys.platform == "win32":
+            lib_paths = ["libusb-1.0.dll"]
+        else:
+            lib_paths = ["libusb-1.0.so", "libusb-1.0.so.0"]
+
+        libusb = None
+        for path in lib_paths:
+            try:
+                libusb = ctypes.CDLL(path)
+                break
+            except OSError:
+                continue
+
+        if not libusb:
+            return "libusb shared library not found"
+
+        # Define the C structure returned by libusb_get_version()
+        class LibUsbVersion(ctypes.Structure):
+            _fields_ = [
+                ("major", ctypes.c_uint16),
+                ("minor", ctypes.c_uint16),
+                ("micro", ctypes.c_uint16),
+                ("nano", ctypes.c_uint16),
+                ("rc", ctypes.c_char_p),
+                ("describe", ctypes.c_char_p),
+            ]
+
+        libusb.libusb_get_version.restype = ctypes.POINTER(LibUsbVersion)
+        v = libusb.libusb_get_version().contents
+
+        # Build the version string
+        version_str = f"{v.major}.{v.minor}.{v.micro}"
+        if v.nano:
+            version_str += f".{v.nano}"
+        if v.rc:
+            version_str += f"-{v.rc.decode('utf-8', errors='ignore')}"
+        return version_str
+
+        return f"{v.major}.{v.minor}.{v.micro}"
+    except Exception as e:
+        return f"Unavailable ({e})"
 
 # --------------------------------------------------------------------------
 # Main
 # --------------------------------------------------------------------------
 def main() -> None:
-    # echo which version of python is being used:
     print(f'Python version: {get_python_version()}')
 
-    # echo which packages are being used and what version is installed
     package_names = get_required_package_names()
     for pkg in package_names:
-        package_name = f'{pkg}'.ljust(16)
         try:
             version_info = get_package_version(pkg)
             print(f"{pkg:<16}{version_info}")
         except Exception as e:
             print(e)
 
-    parser = argparse.ArgumentParser(description="Hollow geodesic wireframe sphere")
+    print(f"{'libusb':<16}{get_libusb_version()}")
+
+    parser = argparse.ArgumentParser(description="Hollow geodesic wireframe sphere using Open3D")
     parser.parse_args()
 
     cfg = load_config()
@@ -216,45 +259,55 @@ def main() -> None:
     tris = open_middle(geodesic_triangles(cfg.frequency), cfg.opening)
     edges = unique_edges(tris) * cfg.sphere_radius
 
-    # Color each edge by its height.
+    # Color each edge by its height using matplotlib colormap.
     z = edges[:, :, 2].mean(axis=1)
-    colors = plt.get_cmap(cfg.colormap)((z - z.min()) / (np.ptp(z) or 1.0))
+    colors = plt.get_cmap(cfg.colormap)((z - z.min()) / (np.ptp(z) or 1.0))[:, :3]
 
-    fig = plt.figure(
-        figsize=(cfg.figure_size, cfg.figure_size), facecolor=cfg.background_color
-    )
-    ax = fig.add_subplot(projection="3d", facecolor=cfg.background_color)
+    # Prepare Open3D LineSet data
+    # Create independent points for each segment to preserve individual segment colors
+    num_edges = len(edges)
+    points = edges.reshape(-1, 3)
+    lines = np.array([[2 * i, 2 * i + 1] for i in range(num_edges)], dtype=np.int32)
 
-    wire = Line3DCollection(edges, colors=colors, linewidths=cfg.line_width)
-    ax.add_collection3d(wire)
+    line_set = o3d.geometry.LineSet()
+    line_set.points = o3d.utility.Vector3dVector(points)
+    line_set.lines = o3d.utility.Vector2iVector(lines)
+    line_set.colors = o3d.utility.Vector3dVector(colors)
 
-    lim = cfg.sphere_radius * 1.05
-    ax.set_xlim(-lim, lim)
-    ax.set_ylim(-lim, lim)
-    ax.set_zlim(-lim, lim)
-    ax.set_box_aspect((1, 1, 1))
-    ax.set_axis_off()
-    ax.view_init(elev=cfg.elevation, azim=cfg.start_azimuth)
+    # Setup Open3D Visualizer window
+    win_width = int(cfg.figure_size * 100)
+    win_height = int(cfg.figure_size * 100)
 
+    title_text = ""
     if cfg.show_title:
-        fig.suptitle(
+        title_text = (
             f"Geodesic wireframe  |  radius {cfg.sphere_radius:g}  |  "
-            f"frequency {cfg.frequency}  |  {len(edges)} edges",
-            color=cfg.title_color,
+            f"frequency {cfg.frequency}  |  {len(edges)} edges"
         )
 
+    vis = o3d.visualization.Visualizer()
+    vis.create_window(window_name=title_text or "Geodesic Sphere", width=win_width, height=win_height)
+
+    vis.add_geometry(line_set)
+
+    # Set background color and line width
+    opt = vis.get_render_option()
+    bg_rgb = mcolors.to_rgb(cfg.background_color)
+    opt.background_color = np.array(bg_rgb)
+    opt.line_width = cfg.line_width
+
+    # Handle spinning animation if requested
     if cfg.spin:
-        def spin(frame: int):
-            ax.view_init(
-                elev=cfg.elevation, azim=cfg.start_azimuth + frame * cfg.spin_speed
-            )
-            return (wire,)
+        def animation_callback(vis_obj):
+            ctr = vis_obj.get_view_control()
+            # Rotate view horizontally based on spin_speed
+            ctr.rotate(cfg.spin_speed * 10.0, 0.0)
+            return False
 
-        _anim = FuncAnimation(
-            fig, spin, frames=cfg.frame_count, interval=cfg.frame_interval, blit=False
-        )
+        vis.register_animation_callback(animation_callback)
 
-    plt.show()
+    vis.run()
+    vis.destroy_window()
 
 
 if __name__ == "__main__":
