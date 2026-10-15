@@ -16,6 +16,7 @@ Drag with the mouse to rotate manually.
 import argparse
 import sys
 from pathlib import Path
+from importlib.metadata import version
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -24,6 +25,7 @@ from matplotlib.animation import FuncAnimation
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 
 from config import Config
+from program_settings import ProgramSettings
 
 # Mathematical constants of the icosahedron (geometry, not settings).
 PHI = (1 + 5**0.5) / 2
@@ -154,11 +156,58 @@ def unique_edges(tris: np.ndarray) -> np.ndarray:
                 edges.append(np.array([p, q]))
     return np.array(edges)
 
+#---------------------------------------------------------------------------
+# Handy utility methods
+
+def get_python_version() -> str:
+    return f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}'
+
+
+def get_package_version(pkg_name: str) -> str:
+    """
+    returns the version number of the given package name
+    :param pkg_name: the name of the package
+    :type pkg_name: string (str)
+    :return: package version number.
+    :rtype: string (str)
+    """
+    return version(pkg_name)
+
+def get_required_package_names() -> list[str]:
+    """
+    read the requirements.txt file and return a sorted list of package names.
+    :return: sorted list of package names
+    :rtype: list[str
+    """
+    packages: list[str] = []
+    with open('requirements.txt') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue  # skip blank lines and comments
+            package = line.split('~')[0].strip()  # works for ~=, >=, ==, etc.
+            packages.append(package)
+
+    packages.sort(key = str.lower)
+    return packages
 
 # --------------------------------------------------------------------------
 # Main
 # --------------------------------------------------------------------------
 def main() -> None:
+    # echo which version of python is being used:
+    print(f'Python version: {get_python_version()}')
+
+    # echo which packages are being used and what version is installed
+    package_names = get_required_package_names()
+    for pkg in package_names:
+        package_name = f'{pkg}'.ljust(16)
+        try:
+            version_info = get_package_version(pkg)
+            print(f"{pkg:<16}{version_info}")
+        except Exception as e:
+            print(e)
+
     parser = argparse.ArgumentParser(description="Hollow geodesic wireframe sphere")
     parser.add_argument("--env", help="path to a .env file (default: auto-detect)")
     cfg = load_config(find_env_file(parser.parse_args().env))
