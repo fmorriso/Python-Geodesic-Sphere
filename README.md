@@ -19,7 +19,7 @@ Python - 3D Geodesic Sphere
 
 ## Developers - PLEASE READ
 
-Requires Python 3.14 or newer
+Requires Python 3.14 or newer.  I developed the code originally using python 3.14.7.
 
 To make this program work, after bringing down the code from GitHub,
 you must make a new file called **_.env_** in the same directory as `main.py` that holds
