@@ -61,3 +61,8 @@ FRAME_INTERVAL=30
 FRAME_COUNT=450
 ```
 ## References
+
+* **[Regular Icosahedron Geometry on Wikipedia](https://en.wikipedia.org/wiki/Regular_icosahedron):** Covers the fundamental Platonic solid underlying all geodesic spheres, including Cartesian coordinates using the golden ratio ($\phi \approx 1.618$) and symmetry properties.
+* **[Geodesic Domes Mathematics by Tom Davis](http://www.geometer.org/mathcircles/geodesic.pdf):** A comprehensive mathematical paper explaining the geometry of spherical projection, edge subdivision frequencies, and vertex configuration.
+* **[Geodesic Math and Structural Layouts by Jay Salsburg](https://www.salsburg.com/geod/geodesicmath.pdf):** Detailed notes on analytical geometry, great-circle grids, and chord calculations required to map flat planar polygons onto a spherical shell.
+* **[A geodesic sphere is formed by subdividing an icosahedron](https://www.youtube.com/shorts/sE2CP3R4-JI)
