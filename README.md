@@ -60,16 +60,4 @@ FRAME_INTERVAL=30
 # Frames before the animation loops
 FRAME_COUNT=450
 ```
-
-### PyQt6 quirk to watch out for
-
-Make sure the two PyQt6 packages have compatible versions using:
-
-```bash
-python3 -m pip install --user --upgrade --force-reinstall PyQt6 PyQt6-WebEngine
-```
-
 ## References
-
-For more information on how to map your data, check out
-the [Folium Documentation](https://python-visualization.github.io/folium/latest/).
