@@ -85,4 +85,4 @@ This project uses **Open3D** for rendering the 3D geodesic wireframe.
 * **[Geodesic Math and Structural Layouts by Jay Salsburg](https://www.salsburg.com/geod/geodesicmath.pdf):** Detailed
   notes on analytical geometry, great-circle grids, and chord calculations required to map flat planar polygons onto a
   spherical shell.
-* **[A geodesic sphere is formed by subdividing an icosahedron](https://www.youtube.com/shorts/sE2CP3R4-JI)
+* **[A geodesic sphere is formed by subdividing an icosahedron](https://www.youtube.com/shorts/sE2CP3R4-JI):** YouTube video
