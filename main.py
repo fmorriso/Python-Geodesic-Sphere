@@ -1,136 +1,248 @@
-import numpy as np
+#!/usr/bin/env python3
+"""
+3D geodesic sphere: a hollow, open wireframe with an open middle.
+
+Every setting is read from a .env file (no values are hard-coded here).
+The script looks for .env next to itself first, then in the working
+directory, or you can point at one with --env.
+
+Requires:  pip install numpy matplotlib
+Usage:     python geodesic_sphere.py
+           python geodesic_sphere.py --env path/to/other.env
+
+Drag with the mouse to rotate manually.
+"""
+
+import argparse
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+import numpy as np
+from matplotlib.animation import FuncAnimation
+from mpl_toolkits.mplot3d.art3d import Line3DCollection
+
+# Mathematical constants of the icosahedron (geometry, not settings).
+PHI = (1 + 5**0.5) / 2
+
+ICO_VERTS = np.array(
+    [
+        (-1, PHI, 0), (1, PHI, 0), (-1, -PHI, 0), (1, -PHI, 0),
+        (0, -1, PHI), (0, 1, PHI), (0, -1, -PHI), (0, 1, -PHI),
+        (PHI, 0, -1), (PHI, 0, 1), (-PHI, 0, -1), (-PHI, 0, 1),
+    ],
+    dtype=float,
+)
+ICO_VERTS /= np.linalg.norm(ICO_VERTS, axis=1, keepdims=True)
+
+ICO_FACES = [
+    (0, 11, 5), (0, 5, 1), (0, 1, 7), (0, 7, 10), (0, 10, 11),
+    (1, 5, 9), (5, 11, 4), (11, 10, 2), (10, 7, 6), (7, 1, 8),
+    (3, 9, 4), (3, 4, 2), (3, 2, 6), (3, 6, 8), (3, 8, 9),
+    (4, 9, 5), (2, 4, 11), (6, 2, 10), (8, 6, 7), (9, 8, 1),
+]
 
 
-def create_icosahedron():
-    """Generates the starting vertices and faces of an icosahedron."""
-    phi = (1 + np.sqrt(5)) / 2  # Golden ratio
-
-    # 12 initial vertices
-    vertices = [
-        [-1, phi, 0], [1, phi, 0], [-1, -phi, 0], [1, -phi, 0],
-        [0, -1, phi], [0, 1, phi], [0, -1, -phi], [0, 1, -phi],
-        [phi, 0, -1], [phi, 0, 1], [-phi, 0, -1], [-phi, 0, 1]
-    ]
-
-    # Normalize vertices to sit on a unit sphere
-    vertices = np.array(vertices, dtype=float)
-    vertices /= np.linalg.norm(vertices[0])
-
-    # 20 triangular faces
-    faces = [
-        [0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11],
-        [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8],
-        [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9],
-        [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1]
-    ]
-    return vertices.tolist(), faces
+# --------------------------------------------------------------------------
+# Configuration, loaded entirely from .env
+# --------------------------------------------------------------------------
+@dataclass(frozen=True)
+class Config:
+    sphere_radius: float
+    frequency: int
+    opening: float
+    line_width: float
+    colormap: str
+    background_color: str
+    title_color: str
+    figure_size: float
+    show_title: bool
+    elevation: float
+    start_azimuth: float
+    spin: bool
+    spin_speed: float
+    frame_interval: int
+    frame_count: int
 
 
-def get_midpoint(v1_idx, v2_idx, cache, vertices):
-    """Finds or creates a midpoint between two vertices, normalized to the sphere surface."""
-    # Use a sorted tuple as the key so the edge (v1, v2) is the same as (v2, v1)
-    key = tuple(sorted([v1_idx, v2_idx]))
-    if key in cache:
-        return cache[key]
-
-    # Calculate midpoint
-    p1 = np.array(vertices[v1_idx])
-    p2 = np.array(vertices[v2_idx])
-    mid = (p1 + p2) / 2
-
-    # Normalize the new point so it gets pushed out to the spherical shell
-    mid /= np.linalg.norm(mid)
-
-    vertices.append(mid.tolist())
-    new_index = len(vertices) - 1
-    cache[key] = new_index
-    return new_index
+def find_env_file(explicit: str | None) -> Path:
+    if explicit:
+        path = Path(explicit)
+        if not path.is_file():
+            sys.exit(f"Error: env file not found: {path}")
+        return path
+    for folder in (Path(__file__).resolve().parent, Path.cwd()):
+        candidate = folder / ".env"
+        if candidate.is_file():
+            return candidate
+    sys.exit("Error: no .env file found next to the script or in the working directory.")
 
 
-def subdivide(vertices, faces):
-    """Subdivides each triangle into 4 smaller triangles."""
-    cache = {}
-    new_faces = []
-
-    for face in faces:
-        v1, v2, v3 = face
-
-        # Get the midpoints of the three edges
-        a = get_midpoint(v1, v2, cache, vertices)
-        b = get_midpoint(v2, v3, cache, vertices)
-        c = get_midpoint(v3, v1, cache, vertices)
-
-        # Form 4 new triangles from the original vertices and the midpoints
-        new_faces.extend([
-            [v1, a, c],
-            [v2, b, a],
-            [v3, c, b],
-            [a, b, c]
-        ])
-
-    return vertices, new_faces
+def parse_env(path: Path) -> dict[str, str]:
+    """Parse KEY=VALUE lines. Blank lines and full-line # comments are skipped."""
+    values: dict[str, str] = {}
+    for number, raw in enumerate(path.read_text().splitlines(), start=1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            sys.exit(f"Error: {path}:{number}: expected KEY=VALUE, got {raw!r}")
+        key, _, value = line.partition("=")
+        # Allow trailing " # comment" (the space keeps colors like #0b0f1a intact).
+        value = value.split(" #")[0].strip().strip("\"'")
+        values[key.strip()] = value
+    return values
 
 
-def build_geodesic_sphere(subdivisions=2, radius=1.0):
-    """Builds the geodesic sphere with the specified complexity and radius."""
-    vertices, faces = create_icosahedron()
+def load_config(path: Path) -> Config:
+    env = parse_env(path)
 
-    for _ in range(subdivisions):
-        vertices, faces = subdivide(vertices, faces)
+    def get(key: str, cast):
+        if key not in env:
+            sys.exit(f"Error: missing required setting {key} in {path}")
+        try:
+            return cast(env[key])
+        except ValueError:
+            sys.exit(f"Error: invalid value for {key} in {path}: {env[key]!r}")
 
-    # Scale to the configured radius
-    vertices = np.array(vertices) * radius
-    return vertices, np.array(faces)
+    def to_bool(text: str) -> bool:
+        lowered = text.lower()
+        if lowered in {"1", "true", "yes", "on"}:
+            return True
+        if lowered in {"0", "false", "no", "off"}:
+            return False
+        raise ValueError(text)
 
-
-def plot_wireframe(vertices, faces, radius):
-    """Renders the 3D wireframe using matplotlib."""
-    fig = plt.figure(figsize=(8, 8))
-    fig.patch.set_facecolor('#111111')  # Dark background
-    ax = fig.add_subplot(111, projection='3d')
-    ax.set_facecolor('#111111')
-
-    # Create the 3D polygon collection using the vertices organized by faces
-    mesh = Poly3DCollection(
-        vertices[faces],
-        facecolors='none',  # Transparent faces for wireframe effect
-        edgecolors='cyan',  # Wireframe color
-        linewidths=0.5,
-        alpha=0.8
+    cfg = Config(
+        sphere_radius=get("SPHERE_RADIUS", float),
+        frequency=get("FREQUENCY", int),
+        opening=get("OPENING", float),
+        line_width=get("LINE_WIDTH", float),
+        colormap=get("COLORMAP", str),
+        background_color=get("BACKGROUND_COLOR", str),
+        title_color=get("TITLE_COLOR", str),
+        figure_size=get("FIGURE_SIZE", float),
+        show_title=get("SHOW_TITLE", to_bool),
+        elevation=get("ELEVATION", float),
+        start_azimuth=get("START_AZIMUTH", float),
+        spin=get("SPIN", to_bool),
+        spin_speed=get("SPIN_SPEED", float),
+        frame_interval=get("FRAME_INTERVAL", int),
+        frame_count=get("FRAME_COUNT", int),
     )
-    ax.add_collection3d(mesh)
 
-    # Configure axes limits to ensure the sphere isn't distorted
-    ax.set_xlim([-radius, radius])
-    ax.set_ylim([-radius, radius])
-    ax.set_zlim([-radius, radius])
+    if cfg.sphere_radius <= 0:
+        sys.exit("Error: SPHERE_RADIUS must be greater than 0")
+    if cfg.frequency < 1:
+        sys.exit("Error: FREQUENCY must be at least 1")
+    if cfg.colormap not in plt.colormaps():
+        sys.exit(f"Error: unknown COLORMAP {cfg.colormap!r}")
+    return cfg
 
-    # Remove axis lines and grid for a clean wireframe look
+
+# --------------------------------------------------------------------------
+# Geometry
+# --------------------------------------------------------------------------
+def normalize(p: np.ndarray) -> np.ndarray:
+    return p / np.linalg.norm(p)
+
+
+def geodesic_triangles(frequency: int) -> np.ndarray:
+    """Return an (N, 3, 3) array of triangles on the unit sphere."""
+    n = frequency
+    tris: list[np.ndarray] = []
+
+    for ia, ib, ic in ICO_FACES:
+        a, b, c = ICO_VERTS[ia], ICO_VERTS[ib], ICO_VERTS[ic]
+        pts = {
+            (i, j): normalize(a + (b - a) * i / n + (c - a) * j / n)
+            for i in range(n + 1)
+            for j in range(n + 1 - i)
+        }
+        for i in range(n):
+            for j in range(n - i):
+                tris.append(np.array([pts[i, j], pts[i + 1, j], pts[i, j + 1]]))
+                if i + j <= n - 2:
+                    tris.append(
+                        np.array([pts[i + 1, j], pts[i + 1, j + 1], pts[i, j + 1]])
+                    )
+    return np.array(tris)
+
+
+def open_middle(tris: np.ndarray, opening: float) -> np.ndarray:
+    """Remove triangles whose centre is within |z| < opening of the equator."""
+    if opening <= 0:
+        return tris
+    centres_z = tris[:, :, 2].mean(axis=1)
+    return tris[np.abs(centres_z) >= opening]
+
+
+def unique_edges(tris: np.ndarray) -> np.ndarray:
+    """Turn triangles into a de-duplicated (E, 2, 3) array of line segments."""
+    seen: set[tuple] = set()
+    edges: list[np.ndarray] = []
+    for tri in tris:
+        for k in range(3):
+            p, q = tri[k], tri[(k + 1) % 3]
+            key = tuple(sorted((tuple(np.round(p, 6)), tuple(np.round(q, 6)))))
+            if key not in seen:
+                seen.add(key)
+                edges.append(np.array([p, q]))
+    return np.array(edges)
+
+
+# --------------------------------------------------------------------------
+# Main
+# --------------------------------------------------------------------------
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Hollow geodesic wireframe sphere")
+    parser.add_argument("--env", help="path to a .env file (default: auto-detect)")
+    cfg = load_config(find_env_file(parser.parse_args().env))
+
+    tris = open_middle(geodesic_triangles(cfg.frequency), cfg.opening)
+    edges = unique_edges(tris) * cfg.sphere_radius
+
+    # Colour each edge by its height.
+    z = edges[:, :, 2].mean(axis=1)
+    colors = plt.get_cmap(cfg.colormap)((z - z.min()) / (np.ptp(z) or 1.0))
+
+    fig = plt.figure(
+        figsize=(cfg.figure_size, cfg.figure_size), facecolor=cfg.background_color
+    )
+    ax = fig.add_subplot(projection="3d", facecolor=cfg.background_color)
+
+    wire = Line3DCollection(edges, colors=colors, linewidths=cfg.line_width)
+    ax.add_collection3d(wire)
+
+    lim = cfg.sphere_radius * 1.05
+    ax.set_xlim(-lim, lim)
+    ax.set_ylim(-lim, lim)
+    ax.set_zlim(-lim, lim)
+    ax.set_box_aspect((1, 1, 1))
     ax.set_axis_off()
+    ax.view_init(elev=cfg.elevation, azim=cfg.start_azimuth)
 
-    # Set the aspect ratio equal to prevent egg-shaping
-    ax.set_box_aspect([1, 1, 1])
+    if cfg.show_title:
+        fig.suptitle(
+            f"Geodesic wireframe  |  radius {cfg.sphere_radius:g}  |  "
+            f"frequency {cfg.frequency}  |  {len(edges)} edges",
+            color=cfg.title_color,
+        )
 
-    plt.tight_layout()
+    if cfg.spin:
+        def spin(frame: int):
+            ax.view_init(
+                elev=cfg.elevation, azim=cfg.start_azimuth + frame * cfg.spin_speed
+            )
+            return (wire,)
+
+        _anim = FuncAnimation(
+            fig, spin, frames=cfg.frame_count, interval=cfg.frame_interval, blit=False
+        )
+
     plt.show()
 
 
 if __name__ == "__main__":
-    # --- CONFIGURATION ---
-    # Increase subdivisions for a smoother, more complex sphere (e.g., 1 to 5)
-    # Be careful going above 5, as the geometry complexity increases exponentially!
-    CONFIG_SUBDIVISIONS = 3
-
-    # The physical unit radius of the sphere
-    CONFIG_RADIUS = 5.0
-    # ---------------------
-
-    print(f"Generating Geodesic Sphere (Radius: {CONFIG_RADIUS}, Subdivisions: {CONFIG_SUBDIVISIONS})...")
-    verts, tris = build_geodesic_sphere(subdivisions=CONFIG_SUBDIVISIONS, radius=CONFIG_RADIUS)
-
-    print(f"Total Vertices: {len(verts)}")
-    print(f"Total Faces: {len(tris)}")
-
-    plot_wireframe(verts, tris, radius=CONFIG_RADIUS)
+    main()
