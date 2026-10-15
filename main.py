@@ -15,13 +15,14 @@ Drag with the mouse to rotate manually.
 
 import argparse
 import sys
-from dataclasses import dataclass
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.animation import FuncAnimation
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
+
+from config import Config
 
 # Mathematical constants of the icosahedron (geometry, not settings).
 PHI = (1 + 5**0.5) / 2
@@ -42,29 +43,6 @@ ICO_FACES = [
     (3, 9, 4), (3, 4, 2), (3, 2, 6), (3, 6, 8), (3, 8, 9),
     (4, 9, 5), (2, 4, 11), (6, 2, 10), (8, 6, 7), (9, 8, 1),
 ]
-
-
-# --------------------------------------------------------------------------
-# Configuration, loaded entirely from .env
-# --------------------------------------------------------------------------
-@dataclass(frozen=True)
-class Config:
-    sphere_radius: float
-    frequency: int
-    opening: float
-    line_width: float
-    colormap: str
-    background_color: str
-    title_color: str
-    figure_size: float
-    show_title: bool
-    elevation: float
-    start_azimuth: float
-    spin: bool
-    spin_speed: float
-    frame_interval: int
-    frame_count: int
-
 
 def find_env_file(explicit: str | None) -> Path:
     if explicit:
