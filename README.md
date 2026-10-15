@@ -22,8 +22,8 @@ Python - 3D Geodesic Sphere
 Requires Python 3.14 or newer
 
 To make this program work, after bringing down the code from GitHub,
-you must make a new file called **_.env_** in the same directory as `main.py` that holds the file system path to
-where the configuration values are located.
+you must make a new file called **_.env_** in the same directory as `main.py` that holds
+the configuration values used to control the size and shape of the sphere.
 
 Here's an example:
 
