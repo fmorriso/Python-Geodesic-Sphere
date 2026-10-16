@@ -4,6 +4,8 @@ Python - 3D Geodesic Sphere
 
 ## Tools Used
 
+**WARNING**: As of October 16, 2026, this program will only work with python 3.14.7 or lower due to ```open3d``` not being compatible with python 3.15.0 (yet).
+
 | Tool          | Version |
 |:--------------|--------:|
 | Python        |  3.14.7 |
