@@ -18,22 +18,56 @@ Python - 3D Geodesic Sphere
 
 ## Change History (newest on top)
 
-| Date       | Description      |
-|:-----------|:-----------------|
-| 2026-10-15 | Initial creation |
+| Date       | Description                                                                                                 |
+|:-----------|:------------------------------------------------------------------------------------------------------------|
+| 2026-10-19 | Added `pyproject.toml` as the single source of truth for dependencies; removed `requirements.txt`           |
+| 2026-10-15 | Initial creation                                                                                            |
 
 ## Developers - PLEASE READ
 
-* Requires Python 3.14 or newer. I developed the code originally using python 3.14.7.
+* Requires Python 3.14 (any 3.14.x release). I developed the code originally using python 3.14.7.
+  Python 3.15 is not supported yet. This is enforced by `requires-python = ">=3.14,<3.15"` in `pyproject.toml`.
 * Requires ```libusb```, which is **NOT** a python package, but must be installed separately to support ```open3d``` which **IS** a python package.
-On a MacBook running macOS 27.0.1, I installed it via the following command in a Terminal session:
+  On a MacBook running macOS 27.0.1, I installed it via the following command in a Terminal session:
+  ```commandline
+  brew install libusb
+  ```
+
+### Dependencies: `pyproject.toml` is the single source of truth
+
+All Python dependencies (and their version pins) are declared in the `dependencies` list in `pyproject.toml`.
+There is **no** `requirements.txt` file. `main.py` reads the dependency names directly from `pyproject.toml`
+(using the standard library's `tomllib`) when it prints the version report at startup, so `pyproject.toml` must stay
+in the same directory as `main.py`.
+
+This project is **not** installed as a package (no `pip install -e .`), which avoids creating a
+`geodesic_sphere.egg-info` directory. The dependencies just need to be present in the Python 3.14 you run it with.
+
+To add, remove, or change the version of a dependency, edit the `dependencies` list in `pyproject.toml` and then
+install the new list into Python 3.14 (this reads the file and passes the entries to pip):
+
 ```commandline
-brew install libusb
+python3.14 -c "import tomllib; print('\n'.join(tomllib.load(open('pyproject.toml','rb'))['project']['dependencies']))" | python3.14 -m pip install -r /dev/stdin
 ```
 
-To make this program work, after bringing down the code from GitHub,
-you must make a new file called **_.env_** in the same directory as `main.py` that holds
-the configuration values used to control the size and shape of the sphere.
+### Setup
+
+After bringing down the code from GitHub:
+
+1. Install the dependencies into Python 3.14 using the command above.
+   Use `python3.14 -m pip` rather than a bare `pip`, which may belong to a different Python version.
+
+2. Create a new file called **_.env_** in the same directory as `main.py` that holds
+   the configuration values used to control the size and shape of the sphere
+   (see the example below).
+
+3. Run the program:
+
+   ```commandline
+   python3.14 main.py
+   ```
+
+### The .env file
 
 Here's an example:
 

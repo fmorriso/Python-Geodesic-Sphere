@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/Geodesic Sphere.iml" filepath="$PROJECT_DIR$/.idea/Geodesic Sphere.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/geodesic-sphere.iml" filepath="$PROJECT_DIR$/.idea/geodesic-sphere.iml" />
     </modules>
   </component>
 </project>

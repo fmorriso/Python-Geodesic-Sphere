@@ -6,7 +6,7 @@ Every setting is read from a .env file (no values are hard-coded here).
 The script looks for .env next to itself first, then in the working
 directory, or you can point at one with --env.
 
-Requires:  pip install numpy matplotlib open3d python-dotenv openpyxl
+Requires:  the dependencies listed in pyproject.toml (Python 3.14 only)
 Usage:     python geodesic_sphere.py
            python geodesic_sphere.py --env path/to/other.env
 
@@ -15,7 +15,9 @@ Drag with the mouse to rotate manually, scroll to zoom.
 
 import argparse
 import ctypes
+import re
 import sys
+import tomllib
 from pathlib import Path
 from importlib.metadata import version
 
@@ -170,17 +172,12 @@ def get_package_version(pkg_name: str) -> str:
 
 
 def get_required_package_names() -> list[str]:
-    packages: list[str] = []
-    with open('requirements.txt') as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith('#'):
-                continue
-            package = line.split('~')[0].strip()
-            packages.append(package)
-
-    packages.sort(key=str.lower)
-    return packages
+    """Read dependency names from pyproject.toml (the single source of truth)."""
+    pyproject = Path(__file__).resolve().parent / "pyproject.toml"
+    with open(pyproject, "rb") as f:
+        deps = tomllib.load(f)["project"]["dependencies"]
+    names = [re.split(r"[~=<>!\[;\s]", d, maxsplit=1)[0] for d in deps]
+    return sorted(names, key=str.lower)
 
 
 def get_libusb_version() -> str:
@@ -234,6 +231,7 @@ def get_libusb_version() -> str:
         return f"{v.major}.{v.minor}.{v.micro}"
     except Exception as e:
         return f"Unavailable ({e})"
+
 
 # --------------------------------------------------------------------------
 # Main

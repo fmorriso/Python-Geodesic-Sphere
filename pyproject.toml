@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "geodesic-sphere"
+version = "0.1.0"
+description = "3D geodesic wireframe sphere rendered with Open3D, configured via a .env file"
+readme = "README.md"
+requires-python = ">=3.14,<3.15"
+# license = "MIT"
+authors = [{ name = "F. Morrison", email = "frederick.morrison@outlook.com" }]
+dependencies = [
+    "matplotlib~=3.11.2",
+    "numpy~=2.5.4",
+    "open3d~=0.20.0",
+    "openpyxl~=3.1.5",
+    "python-dotenv~=1.2.4",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+]
+
+[project.scripts]
+geodesic-sphere = "main:main"
+
+[tool.setuptools]
+# Flat layout: three loose modules rather than a package
+py-modules = ["config", "main", "program_settings"]
